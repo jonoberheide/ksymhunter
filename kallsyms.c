@@ -94,7 +94,49 @@ ksymhunter_kallsyms(char *name)
 		return addr;
 	}
 
+	snprintf(path, sizeof(path), "/System.map-%s", ver.release);
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/src/linux-%s/System.map", ver.release);
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/lib/modules/%s/System.map", ver.release);
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/System.map");
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/System.map");
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/src/linux/System.map");
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
 	snprintf(path, sizeof(path), "/boot/System.map-genkernel-%s-%s", ver.machine, ver.release);
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/System.map-genkernel-%s-%s", ver.machine, ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
 		return addr;
