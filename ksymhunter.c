@@ -27,11 +27,6 @@ ksymhunter(char *symbol)
 		return addr;
 	}
 
-	addr = ksymhunter_systemmap(symbol);
-	if (addr) {
-		return addr;
-	}
-
 	return 0;
 }
 

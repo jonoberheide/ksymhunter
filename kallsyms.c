@@ -1,7 +1,7 @@
 /*
  * kallsyms.c
  *
- * Routines for parsing kallsyms/ksyms symbol tables.
+ * Routines for parsing kallsyms/ksyms/System.map symbol tables.
  *
  * Adapted from spender's enlightenment.
  */
@@ -13,6 +13,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/utsname.h>
 
 unsigned long
 parse_kallsyms(char *name, char *path, int oldstyle)
@@ -64,14 +66,36 @@ parse_kallsyms(char *name, char *path, int oldstyle)
 unsigned long
 ksymhunter_kallsyms(char *name)
 {
+	int oldstyle;
+	char path[512];
+	struct utsname ver;
 	unsigned long addr;
 
-	addr = parse_kallsyms(name, "/proc/kallsyms", 0);
+	uname(&ver);
+	if (strncmp(ver.release, "2.6", 3)) {
+		oldstyle = 1;
+	}
+
+	snprintf(path, sizeof(path), "/proc/kallsyms");
+	addr = parse_kallsyms(name, path, 0);
 	if (addr) {
 		return addr;
 	}
 
-	addr = parse_kallsyms(name, "/proc/ksyms", 1);
+	snprintf(path, sizeof(path), "/proc/ksyms");
+	addr = parse_kallsyms(name, path, 1);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/System.map-%s", ver.release);
+	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/System.map-genkernel-%s-%s", ver.machine, ver.release);
+	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
 		return addr;
 	}

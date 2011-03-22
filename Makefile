@@ -3,9 +3,10 @@ CC = gcc
 LD = gcc
 RM = rm -f
 CFLAGS = -g -Wall
+LDFLAGS = 
 
 PROG = ksymhunter
-OBJS = ksymhunter.o kallsyms.o systemmap.o
+OBJS = ksymhunter.o kallsyms.o
 
 all: $(PROG)
 
