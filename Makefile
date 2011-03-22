@@ -1,15 +1,19 @@
 
-ksymhunter: ksymhunter.o kallsyms.o systemmap.o
-	gcc ksymhunter.o kallsyms.o systemmap.o -o ksymhunter
+CC = gcc
+LD = gcc
+RM = rm -f
+CFLAGS = -g -Wall
 
-ksymhunter.o: ksymhunter.c
-	gcc -c ksymhunter.c
+PROG = ksymhunter
+OBJS = ksymhunter.o kallsyms.o systemmap.o
 
-kallsyms.o: kallsyms.c
-	gcc -c kallsyms.c
+all: $(PROG)
 
-systemmap.o: systemmap.c
-	gcc -c systemmap.c
+$(PROG): $(OBJS)
+	$(LD) $(LDFLAGS) $(OBJS) -o $(PROG)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f *.o ksymhunter
+	$(RM) $(PROG) $(OBJS)
