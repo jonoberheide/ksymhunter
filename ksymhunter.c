@@ -20,16 +20,16 @@
 unsigned long
 ksymhunter(char *symbol)
 {
-	unsigned long address;
+	unsigned long addr;
 
-	address = ksymhunter_kallsyms(symbol);
-	if (address) {
-		return address;
+	addr = ksymhunter_kallsyms(symbol);
+	if (addr) {
+		return addr;
 	}
 
-	address = ksymhunter_systemmap(symbol);
-	if (address) {
-		return address;
+	addr = ksymhunter_systemmap(symbol);
+	if (addr) {
+		return addr;
 	}
 
 	return 0;
@@ -39,7 +39,7 @@ int
 main(int argc, char *argv[])
 {
 	char *symbol;
-	unsigned long address;
+	unsigned long addr;
 
 	if (argc < 2) {
 		printf("usage: %s symbol_name\n", argv[0]);
@@ -50,13 +50,13 @@ main(int argc, char *argv[])
 
 	printf("[+] trying to resolve %s...\n", symbol);
 
-	address = ksymhunter(argv[1]);
-	if (!address) {
+	addr = ksymhunter(argv[1]);
+	if (!addr) {
 		printf("[-] failed to resolve %s\n", symbol);
 		exit(1);
 	}
 
-	printf("[+] resolved %s to 0x%lx...\n", symbol, address);
+	printf("[+] resolved %s to 0x%lx...\n", symbol, addr);
 
 	return 0;
 }
