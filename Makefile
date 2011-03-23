@@ -6,7 +6,7 @@ CFLAGS = -g -Wall
 LDFLAGS = 
 
 PROG = ksymhunter
-OBJS = ksymhunter.o kallsyms.o
+OBJS = ksymhunter.o
 
 all: $(PROG)
 
