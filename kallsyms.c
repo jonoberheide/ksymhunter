@@ -182,13 +182,6 @@ ksymhunter_kallsyms(char *name)
 		return addr;
 	}
 
-	snprintf(path, sizeof(path), "/usr/lib/debug/boot/vmlinux-%s", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
 	snprintf(path, sizeof(path), "/boot/vmlinux-%s.debug", ver.release);
 	addr = parse_vmlinux(name, path, oldstyle);
 	if (addr) {
@@ -231,7 +224,35 @@ ksymhunter_kallsyms(char *name)
 		return addr;
 	}
 
+	snprintf(path, sizeof(path), "/usr/lib/debug/boot/vmlinux-%s", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
 	snprintf(path, sizeof(path), "/usr/lib/debug/vmlinux-%s", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/var/cache/abrt-di/usr/debug/lib/modules/%s/vmlinux", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/var/cache/abrt-di/usr/lib/debug/lib/modules/%s/vmlinux.debug", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/var/cache/abrt-di/usr/lib/debug/boot/vmlinux-%s", ver.release);
 	addr = parse_vmlinux(name, path, oldstyle);
 	if (addr) {
 		printf("[+] resolved %s using %s\n", name, path);
