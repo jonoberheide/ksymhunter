@@ -64,6 +64,21 @@ parse_kallsyms(char *name, char *path, int oldstyle)
 }
 
 unsigned long
+parse_vmlinux(char *name, char *path, int oldstyle)
+{
+	char cmd[512];
+	unsigned long addr;
+	char *tmpfile = ".ksymhunter";
+	
+	snprintf(cmd, sizeof(cmd), "nm %s &> %s", path, tmpfile);
+	system(cmd);
+	addr = parse_kallsyms(name, tmpfile, oldstyle);
+	unlink(tmpfile);
+
+	return addr;
+}
+
+unsigned long
 ksymhunter_kallsyms(char *name)
 {
 	char path[512];
@@ -148,6 +163,104 @@ ksymhunter_kallsyms(char *name)
 
 	snprintf(path, sizeof(path), "/System.map-genkernel-%s-%s", ver.machine, ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/vmlinux-%s", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/.debug/vmlinux-%s", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/lib/debug/boot/vmlinux-%s", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/vmlinux-%s.debug", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/.debug/vmlinux-%s.debug", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/lib/modules/%s/vmlinux", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/lib/modules/%s/vmlinux.debug", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/lib/modules/%s/.debug/vmlinux.debug", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/lib/debug/lib/modules/%s/vmlinux.debug", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/lib/debug/vmlinux-%s", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/src/linux-%s/vmlinux", ver.release);
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/usr/src/linux/vmlinux");
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/boot/vmlinux");
+	addr = parse_vmlinux(name, path, oldstyle);
+	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
+		return addr;
+	}
+
+	snprintf(path, sizeof(path), "/vmlinux");
+	addr = parse_vmlinux(name, path, oldstyle);
 	if (addr) {
 		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
