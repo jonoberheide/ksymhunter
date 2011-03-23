@@ -66,10 +66,10 @@ parse_kallsyms(char *name, char *path, int oldstyle)
 unsigned long
 ksymhunter_kallsyms(char *name)
 {
-	int oldstyle;
 	char path[512];
 	struct utsname ver;
 	unsigned long addr;
+	int oldstyle = 0;
 
 	uname(&ver);
 	if (strncmp(ver.release, "2.6", 3)) {
@@ -79,66 +79,77 @@ ksymhunter_kallsyms(char *name)
 	snprintf(path, sizeof(path), "/proc/kallsyms");
 	addr = parse_kallsyms(name, path, 0);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/proc/ksyms");
 	addr = parse_kallsyms(name, path, 1);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/boot/System.map-%s", ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/System.map-%s", ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/usr/src/linux-%s/System.map", ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/lib/modules/%s/System.map", ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/boot/System.map");
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/System.map");
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/usr/src/linux/System.map");
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/boot/System.map-genkernel-%s-%s", ver.machine, ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 
 	snprintf(path, sizeof(path), "/System.map-genkernel-%s-%s", ver.machine, ver.release);
 	addr = parse_kallsyms(name, path, oldstyle);
 	if (addr) {
+		printf("[+] resolved %s using %s\n", name, path);
 		return addr;
 	}
 

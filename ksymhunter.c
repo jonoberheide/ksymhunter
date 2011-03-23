@@ -51,7 +51,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	printf("[+] resolved %s to 0x%lx...\n", symbol, addr);
+	printf("[+] resolved %s to 0x%lx\n", symbol, addr);
 
 	return 0;
 }
