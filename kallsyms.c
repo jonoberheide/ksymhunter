@@ -1,9 +1,10 @@
 /*
  * kallsyms.c
  *
- * Routines for parsing kallsyms/ksyms/System.map symbol tables.
+ * Routines for extracting kernel symbols from kallsyms, System.map,
+ * vmlinux, and other sources.
  *
- * Adapted from spender's enlightenment.
+ * System.map parsing adapted from spender's enlightenment.
  */
 
 #include <stdio.h>
@@ -16,17 +17,80 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 
+unsigned long parse_sysmap(char *name, char *path);
+unsigned long parse_vmlinux(char *name, char *path);
+
+#define SOURCE(FP, FMT, ARGS) { .fp = FP, .fmt = FMT, .args = ARGS }
+
+#define SYSMAP(FMT, ARGS)  SOURCE(parse_sysmap, FMT, ARGS)
+#define SYSMAP_0(FMT)      SYSMAP(FMT, 0)
+#define SYSMAP_1(FMT)      SYSMAP(FMT, 1)
+#define SYSMAP_2(FMT)      SYSMAP(FMT, 2)
+
+#define VMLINUX(FMT, ARGS) SOURCE(parse_vmlinux, FMT, ARGS)
+#define VMLINUX_0(FMT)     VMLINUX(FMT, 0)
+#define VMLINUX_1(FMT)     VMLINUX(FMT, 1)
+#define VMLINUX_2(FMT)     VMLINUX(FMT, 2)
+
+struct source {
+	int args;
+	char *fmt;
+	unsigned long (*fp) (char *, char *);
+};
+
+struct source sources[] = {
+	SYSMAP_0("/proc/kallsyms"),
+	SYSMAP_0("/proc/ksyms"),
+	SYSMAP_1("/boot/System.map-%s"),
+	SYSMAP_2("/boot/System.map-genkernel-%s-%s"),
+	SYSMAP_1("/System.map-%s"),
+	SYSMAP_2("/System.map-genkernel-%s-%s"),
+	SYSMAP_1("/usr/src/linux-%s/System.map"),
+	SYSMAP_1("/lib/modules/%s/System.map"),
+	SYSMAP_0("/boot/System.map"),
+	SYSMAP_0("/System.map"),
+	SYSMAP_0("/usr/src/linux/System.map"),
+	VMLINUX_1("/boot/vmlinux-%s"),
+	VMLINUX_1("/boot/vmlinux-%s.debug"),
+	VMLINUX_1("/boot/.debug/vmlinux-%s"),
+	VMLINUX_1("/boot/.debug/vmlinux-%s.debug"),
+	VMLINUX_1("/lib/modules/%s/vmlinux"),
+	VMLINUX_1("/lib/modules/%s/vmlinux.debug"),
+	VMLINUX_1("/lib/modules/%s/.debug/vmlinux"),
+	VMLINUX_1("/lib/modules/%s/.debug/vmlinux.debug"),
+	VMLINUX_1("/usr/lib/debug/lib/modules/%s/vmlinux"),
+	VMLINUX_1("/usr/lib/debug/lib/modules/%s/vmlinux.debug"),
+	VMLINUX_1("/usr/lib/debug/boot/vmlinux-%s"),
+	VMLINUX_1("/usr/lib/debug/boot/vmlinux-%s.debug"),
+	VMLINUX_1("/usr/lib/debug/vmlinux-%s"),
+	VMLINUX_1("/usr/lib/debug/vmlinux-%s.debug"),
+	VMLINUX_1("/var/cache/abrt-di/usr/lib/debug/lib/modules/%s/vmlinux"),
+	VMLINUX_1("/var/cache/abrt-di/usr/lib/debug/lib/modules/%s/vmlinux.debug"),
+	VMLINUX_1("/var/cache/abrt-di/usr/lib/debug/boot/vmlinux-%s"),
+	VMLINUX_1("/var/cache/abrt-di/usr/lib/debug/boot/vmlinux-%s.debug"),
+	VMLINUX_1("/usr/src/linux-%s/vmlinux"),
+	VMLINUX_0("/usr/src/linux/vmlinux"),
+	VMLINUX_0("/boot/vmlinux"),
+	VMLINUX_0("/vmlinux"),
+};
+
 unsigned long
-parse_kallsyms(char *name, char *path, int oldstyle)
+parse_sysmap(char *name, char *path)
 {
 	FILE *f;
 	unsigned long addr;
 	char dummy, sname[512];
-	int ret = 0;
+	int ret = 0, oldstyle = 0;
+	struct utsname ver;
 
 	f = fopen(path, "r");
 	if (!f) {
 		return 0;
+	}
+
+	uname(&ver);
+	if (strncmp(ver.release, "2.6", 3)) {
+		oldstyle = 1;
 	}
 
 	while (ret != EOF) {
@@ -64,15 +128,15 @@ parse_kallsyms(char *name, char *path, int oldstyle)
 }
 
 unsigned long
-parse_vmlinux(char *name, char *path, int oldstyle)
+parse_vmlinux(char *name, char *path)
 {
 	char cmd[512];
+	char *tmpfile = ".sysmap";
 	unsigned long addr;
-	char *tmpfile = ".ksymhunter";
 	
 	snprintf(cmd, sizeof(cmd), "nm %s &> %s", path, tmpfile);
 	system(cmd);
-	addr = parse_kallsyms(name, tmpfile, oldstyle);
+	addr = parse_sysmap(name, tmpfile);
 	unlink(tmpfile);
 
 	return addr;
@@ -82,209 +146,30 @@ unsigned long
 ksymhunter_kallsyms(char *name)
 {
 	char path[512];
+	struct source *source;
 	struct utsname ver;
 	unsigned long addr;
-	int oldstyle = 0;
+	int i, count;
 
 	uname(&ver);
-	if (strncmp(ver.release, "2.6", 3)) {
-		oldstyle = 1;
-	}
 
-	snprintf(path, sizeof(path), "/proc/kallsyms");
-	addr = parse_kallsyms(name, path, 0);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
+	count = sizeof(sources) / sizeof(struct source);
+	for (i = 0; i < count; ++i) {
+		source = &sources[i];
 
-	snprintf(path, sizeof(path), "/proc/ksyms");
-	addr = parse_kallsyms(name, path, 1);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
+		if (source->args == 0) {
+			snprintf(path, sizeof(path), source->fmt, "");
+		} else if (source->args == 1) {
+			snprintf(path, sizeof(path), source->fmt, ver.release);
+		} else if (source->args == 2) {
+			snprintf(path, sizeof(path), source->fmt, ver.machine, ver.release);
+		}
 
-	snprintf(path, sizeof(path), "/boot/System.map-%s", ver.release);
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/System.map-%s", ver.release);
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/src/linux-%s/System.map", ver.release);
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/lib/modules/%s/System.map", ver.release);
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/System.map");
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/System.map");
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/src/linux/System.map");
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/System.map-genkernel-%s-%s", ver.machine, ver.release);
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/System.map-genkernel-%s-%s", ver.machine, ver.release);
-	addr = parse_kallsyms(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/vmlinux-%s", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/.debug/vmlinux-%s", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/vmlinux-%s.debug", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/.debug/vmlinux-%s.debug", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/lib/modules/%s/vmlinux", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/lib/modules/%s/vmlinux.debug", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/lib/modules/%s/.debug/vmlinux.debug", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/lib/debug/lib/modules/%s/vmlinux.debug", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/lib/debug/boot/vmlinux-%s", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/lib/debug/vmlinux-%s", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/var/cache/abrt-di/usr/debug/lib/modules/%s/vmlinux", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/var/cache/abrt-di/usr/lib/debug/lib/modules/%s/vmlinux.debug", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/var/cache/abrt-di/usr/lib/debug/boot/vmlinux-%s", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/src/linux-%s/vmlinux", ver.release);
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/usr/src/linux/vmlinux");
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/boot/vmlinux");
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
-	}
-
-	snprintf(path, sizeof(path), "/vmlinux");
-	addr = parse_vmlinux(name, path, oldstyle);
-	if (addr) {
-		printf("[+] resolved %s using %s\n", name, path);
-		return addr;
+		addr = source->fp(name, path);
+		if (addr) {
+			printf("[+] resolved %s using %s\n", name, path);
+			return addr;
+		}
 	}
 
 	return 0;
