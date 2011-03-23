@@ -20,26 +20,33 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 
-unsigned long parse_sysmap(char *name, char *path);
-unsigned long parse_vmlinux(char *name, char *path);
-unsigned long parse_vmlinuz(char *name, char *path);
+unsigned long try_sysmap(char *name, char *path);
+unsigned long try_vmlinux(char *name, char *path);
+unsigned long try_vmlinuz(char *name, char *path);
+unsigned long try_remote(char *name, char *path);
 
 #define SOURCE(FP, FMT, ARGS) { .fp = FP, .fmt = FMT, .args = ARGS }
 
-#define SYSMAP(FMT, ARGS)  SOURCE(parse_sysmap, FMT, ARGS)
+#define SYSMAP(FMT, ARGS)  SOURCE(try_sysmap, FMT, ARGS)
 #define SYSMAP_0(FMT)      SYSMAP(FMT, 0)
 #define SYSMAP_1(FMT)      SYSMAP(FMT, 1)
 #define SYSMAP_2(FMT)      SYSMAP(FMT, 2)
 
-#define VMLINUX(FMT, ARGS) SOURCE(parse_vmlinux, FMT, ARGS)
+#define VMLINUX(FMT, ARGS) SOURCE(try_vmlinux, FMT, ARGS)
 #define VMLINUX_0(FMT)     VMLINUX(FMT, 0)
 #define VMLINUX_1(FMT)     VMLINUX(FMT, 1)
 #define VMLINUX_2(FMT)     VMLINUX(FMT, 2)
 
-#define VMLINUZ(FMT, ARGS) SOURCE(parse_vmlinuz, FMT, ARGS)
+#define VMLINUZ(FMT, ARGS) SOURCE(try_vmlinuz, FMT, ARGS)
 #define VMLINUZ_0(FMT)     VMLINUX(FMT, 0)
 #define VMLINUZ_1(FMT)     VMLINUX(FMT, 1)
 #define VMLINUZ_2(FMT)     VMLINUX(FMT, 2)
+
+#define REMOTE(FMT, ARGS)  SOURCE(try_remote, FMT, ARGS)
+#define REMOTE_2(FMT)      VMLINUX(FMT, 2)
+
+#define REMOTE_HOST "kernelvulns.org"
+#define REMOTE_PORT 80
 
 struct source {
 	int args;
@@ -86,10 +93,11 @@ struct source sources[] = {
 	VMLINUZ_0("/boot/vmlinuz"),
 	VMLINUZ_0("/vmlinuz"),
 	VMLINUZ_0("/usr/src/linux/arch/x86/boot/bzImage"),
+	REMOTE_2("%s-%s")
 };
 
 unsigned long
-parse_sysmap(char *name, char *path)
+try_sysmap(char *name, char *path)
 {
 	FILE *f;
 	unsigned long addr;
@@ -142,7 +150,7 @@ parse_sysmap(char *name, char *path)
 }
 
 unsigned long
-parse_vmlinux(char *name, char *path)
+try_vmlinux(char *name, char *path)
 {
 	char cmd[512];
 	char *tmpfile = ".sysmap";
@@ -150,16 +158,23 @@ parse_vmlinux(char *name, char *path)
 	
 	snprintf(cmd, sizeof(cmd), "nm %s &> %s", path, tmpfile);
 	system(cmd);
-	addr = parse_sysmap(name, tmpfile);
+	addr = try_sysmap(name, tmpfile);
 	unlink(tmpfile);
 
 	return addr;
 }
 
 unsigned long
-parse_vmlinuz(char *name, char *path)
+try_vmlinuz(char *name, char *path)
 {
 	/* don't ask... */
+	return 0;
+}
+
+unsigned long
+try_remote(char *name, char *path)
+{
+	/* query out to kernelvulns.org */
 	return 0;
 }
 
