@@ -22,6 +22,7 @@
 
 unsigned long parse_sysmap(char *name, char *path);
 unsigned long parse_vmlinux(char *name, char *path);
+unsigned long parse_vmlinuz(char *name, char *path);
 
 #define SOURCE(FP, FMT, ARGS) { .fp = FP, .fmt = FMT, .args = ARGS }
 
@@ -34,6 +35,11 @@ unsigned long parse_vmlinux(char *name, char *path);
 #define VMLINUX_0(FMT)     VMLINUX(FMT, 0)
 #define VMLINUX_1(FMT)     VMLINUX(FMT, 1)
 #define VMLINUX_2(FMT)     VMLINUX(FMT, 2)
+
+#define VMLINUZ(FMT, ARGS) SOURCE(parse_vmlinuz, FMT, ARGS)
+#define VMLINUZ_0(FMT)     VMLINUX(FMT, 0)
+#define VMLINUZ_1(FMT)     VMLINUX(FMT, 1)
+#define VMLINUZ_2(FMT)     VMLINUX(FMT, 2)
 
 struct source {
 	int args;
@@ -74,7 +80,12 @@ struct source sources[] = {
 	VMLINUX_1("/usr/src/linux-%s/vmlinux"),
 	VMLINUX_0("/usr/src/linux/vmlinux"),
 	VMLINUX_0("/boot/vmlinux"),
-	VMLINUX_0("/vmlinux"),
+	VMLINUZ_1("/boot/vmlinuz-%s"),
+	VMLINUZ_1("/vmlinuz-%s"),
+	VMLINUZ_1("/usr/src/linux-%s/arch/x86/boot/bzImage"),
+	VMLINUZ_0("/boot/vmlinuz"),
+	VMLINUZ_0("/vmlinuz"),
+	VMLINUZ_0("/usr/src/linux/arch/x86/boot/bzImage"),
 };
 
 unsigned long
@@ -143,6 +154,13 @@ parse_vmlinux(char *name, char *path)
 	unlink(tmpfile);
 
 	return addr;
+}
+
+unsigned long
+parse_vmlinuz(char *name, char *path)
+{
+	/* don't ask... */
+	return 0;
 }
 
 unsigned long
