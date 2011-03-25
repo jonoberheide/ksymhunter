@@ -17,8 +17,14 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <netdb.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
 
 unsigned long try_sysmap(char *name, char *path);
 unsigned long try_vmlinux(char *name, char *path);
@@ -43,10 +49,10 @@ unsigned long try_remote(char *name, char *path);
 #define VMLINUZ_2(FMT)     VMLINUX(FMT, 2)
 
 #define REMOTE(FMT, ARGS)  SOURCE(try_remote, FMT, ARGS)
-#define REMOTE_2(FMT)      VMLINUX(FMT, 2)
+#define REMOTE_0(FMT)      REMOTE(FMT, 0)
 
 #define REMOTE_HOST "kernelvulns.org"
-#define REMOTE_PORT 80
+#define REMOTE_PORT "80"
 
 struct source {
 	int args;
@@ -93,7 +99,7 @@ struct source sources[] = {
 	VMLINUZ_0("/boot/vmlinuz"),
 	VMLINUZ_0("/vmlinuz"),
 	VMLINUZ_0("/usr/src/linux/arch/x86/boot/bzImage"),
-	REMOTE_2("%s-%s")
+	REMOTE_0(REMOTE_HOST),
 };
 
 unsigned long
@@ -174,8 +180,51 @@ try_vmlinuz(char *name, char *path)
 unsigned long
 try_remote(char *name, char *path)
 {
-	/* query out to kernelvulns.org */
-	return 0;
+	int ret, sock;
+	struct addrinfo *result;
+	struct addrinfo hints;
+	unsigned long addr;
+	struct utsname ver;
+	char msg[512];
+
+	uname(&ver);
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_family = AF_INET;
+
+	ret = getaddrinfo(REMOTE_HOST, REMOTE_PORT, &hints, &result);
+	if (ret != 0) {
+		return 0;
+	}
+
+ 	sock = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (sock == -1) {
+		return 0;
+	}
+
+	ret = connect(sock, result->ai_addr, result->ai_addrlen);
+	if (ret == -1) {
+		close(sock);
+		return 0;
+	}
+
+	snprintf(msg, sizeof(msg), "%s|%s|%s", ver.machine, ver.release, name);
+
+	ret = send(sock, msg, strlen(msg), 0);
+	if (ret != strlen(msg)) {
+		close(sock);
+		return 0;
+	}
+
+	ret = recv(sock, &addr, sizeof(addr), 0);
+	if (ret != sizeof(addr)) {
+		close(sock);
+		return 0;
+	}
+
+	close(sock);
+	return addr;
 }
 
 unsigned long
@@ -200,7 +249,7 @@ ksymhunter(char *name)
 		} else if (source->args == 2) {
 			snprintf(path, sizeof(path), source->fmt, ver.machine, ver.release);
 		}
-
+		
 		addr = source->fp(name, path);
 		if (addr) {
 			printf("[+] resolved %s using %s\n", name, path);
