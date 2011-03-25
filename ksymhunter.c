@@ -4,8 +4,8 @@
  * Jon Oberheide <jon@oberheide.org>
  * http://jon.oberheide.org
  *
- * Routines for extracting kernel symbols from kallsyms, System.map,
- * vmlinux, and other sources.
+ * Routines for hunting down kernel symbols from from kallsyms,
+ * System.map, vmlinux, vmlinuz, and remote symbol servers.
  *
  * System.map parsing adapted from spender's enlightenment.
  */
