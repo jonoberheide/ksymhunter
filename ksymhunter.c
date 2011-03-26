@@ -18,7 +18,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <netdb.h>
-#include <sys/types.h>
+#include <inttypes.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 #include <sys/utsname.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -44,9 +46,9 @@ unsigned long try_remote(char *name, char *path);
 #define VMLINUX_2(FMT)     VMLINUX(FMT, 2)
 
 #define VMLINUZ(FMT, ARGS) SOURCE(try_vmlinuz, FMT, ARGS)
-#define VMLINUZ_0(FMT)     VMLINUX(FMT, 0)
-#define VMLINUZ_1(FMT)     VMLINUX(FMT, 1)
-#define VMLINUZ_2(FMT)     VMLINUX(FMT, 2)
+#define VMLINUZ_0(FMT)     VMLINUZ(FMT, 0)
+#define VMLINUZ_1(FMT)     VMLINUZ(FMT, 1)
+#define VMLINUZ_2(FMT)     VMLINUZ(FMT, 2)
 
 #define REMOTE(FMT, ARGS)  SOURCE(try_remote, FMT, ARGS)
 #define REMOTE_0(FMT)      REMOTE(FMT, 0)
@@ -94,7 +96,9 @@ struct source sources[] = {
 	VMLINUX_0("/usr/src/linux/vmlinux"),
 	VMLINUX_0("/boot/vmlinux"),
 	VMLINUZ_1("/boot/vmlinuz-%s"),
+	VMLINUZ_2("/boot/kernel-genkernel-%s-%s"),
 	VMLINUZ_1("/vmlinuz-%s"),
+	VMLINUZ_2("/kernel-genkernel-%s-%s"),
 	VMLINUZ_1("/usr/src/linux-%s/arch/x86/boot/bzImage"),
 	VMLINUZ_0("/boot/vmlinuz"),
 	VMLINUZ_0("/vmlinuz"),
@@ -173,7 +177,131 @@ try_vmlinux(char *name, char *path)
 unsigned long
 try_vmlinuz(char *name, char *path)
 {
-	/* don't ask... */
+	FILE *fp;
+	void *mem;
+	char *token, cmd[1024], out[1024];
+	unsigned long *ptr, rodata, curr = 0, prev = 0;
+	int i, fd, ret, ctr, off, num_syms;
+	struct stat sb;
+
+	unsigned long kallsyms_num_syms;
+	unsigned long *kallsyms_addresses;
+	unsigned long *kallsyms_markers;
+	uint8_t *kallsyms_names;
+	uint8_t *kallsyms_token_table;
+	uint16_t *kallsyms_token_index;
+
+	char *tmpfile = ".vmlinuz";
+	char *madness_1 = "for pos in `tr \"\037\213\010\nxy\" \"\nxy=\" < \"%s\" | grep -abo \"^xy\"`; do pos=${pos%%:*}; tail -c+$pos \"%s\" | gunzip > %s 2> /dev/null; break; done";
+	char *madness_2 = "readelf -S %s | grep \"\\.rodata\" | awk '{print $6}'";
+
+	ret = stat(path, &sb);
+	if (ret == -1) {
+		return 0;
+	}
+
+	snprintf(cmd, sizeof(cmd), madness_1, path, path, tmpfile);
+	system(cmd);
+
+	ret = stat(tmpfile, &sb);
+	if (ret == -1) {
+		return 0;
+	}
+
+	snprintf(cmd, sizeof(cmd), madness_2, tmpfile);
+
+	fp = popen(cmd, "r");
+	if (!fp) {
+		return 0;
+	}
+	fgets(out, sizeof(out), fp);
+	pclose(fp);
+
+	rodata = strtoul(out, NULL, 16);
+
+	fd = open(tmpfile, O_RDONLY);
+	if (fd == -1) {
+		return 0;
+	}
+
+	ret = fstat(fd, &sb);
+	if (ret == -1) {
+		return 0;
+	}
+
+	mem = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	if (mem == MAP_FAILED) {
+		return 0;
+	}
+
+	ptr = mem + rodata;
+
+	for (ctr = 0; ctr < 5000; ++ctr, ++ptr) {
+		prev = curr;
+		curr = *ptr;
+		if (prev > curr) {
+			ctr = 0;
+		}
+	}
+
+	for (; prev <= curr; ++ptr) {
+		prev = curr;
+		curr = *ptr;
+	}
+
+	num_syms = curr;
+	kallsyms_num_syms = (unsigned long) (ptr - 1);
+	kallsyms_addresses = (unsigned long *) (kallsyms_num_syms - (num_syms * sizeof(unsigned long)));
+	kallsyms_names = (uint8_t *) (kallsyms_num_syms + (1 * sizeof(unsigned long)));
+
+	for (ptr = (unsigned long *) kallsyms_names; *ptr != 0; ++ptr) { }
+
+	kallsyms_markers = ptr;
+	kallsyms_token_table = (uint8_t *) (kallsyms_markers + (((num_syms + 255) / 256)));
+	token = (char *) kallsyms_token_table;
+
+	for (i = 0; i < 256; ++i) {
+		token += strlen(token) + 1;
+	}
+
+	kallsyms_token_index = (uint16_t *) ((unsigned long) (token + sizeof(unsigned long)) & ~(sizeof(unsigned long) - 1));
+
+	for (i = 0, off = 0; i < kallsyms_num_syms; i++) {
+		char buf[128];
+		char *result = buf;
+		int len, skipped_first = 0;
+		uint8_t *tptr, *data;
+
+		data = &kallsyms_names[off];
+		len = *data;
+		data++;
+		off += len + 1;
+
+		while (len) {
+			tptr = &kallsyms_token_table[kallsyms_token_index[*data]];
+			data++;
+			len--;
+			while (*tptr) {
+				if (skipped_first) {
+					*result = *tptr;
+					result++;
+				} else {
+					skipped_first = 1;
+				}
+				tptr++;
+			}
+		}
+		*result = '\0';
+
+		if (strcmp(buf, name) == 0) {
+			return kallsyms_addresses[i];
+		}
+	}
+
+	close(fd);
+	munmap(mem, sb.st_size);
+	unlink(tmpfile);
+
 	return 0;
 }
 
@@ -249,7 +377,7 @@ ksymhunter(char *name)
 		} else if (source->args == 2) {
 			snprintf(path, sizeof(path), source->fmt, ver.machine, ver.release);
 		}
-		
+
 		addr = source->fp(name, path);
 		if (addr) {
 			printf("[+] resolved %s using %s\n", name, path);
