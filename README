@@ -5,3 +5,15 @@ http://jon.oberheide.org
 
 Routines for hunting down kernel symbols from from kallsyms,
 System.map, vmlinux, vmlinuz, and remote symbol servers.
+
+Example:
+
+$ ./ksymhunter prepare_kernel_cred
+[+] trying to resolve prepare_kernel_cred...
+[+] resolved prepare_kernel_cred using /boot/System.map-2.6.38-gentoo
+[+] resolved prepare_kernel_cred to 0xffffffff81061060
+
+$ ./ksymhunter commit_creds
+[+] trying to resolve commit_creds...
+[+] resolved commit_creds using /boot/System.map-2.6.38-gentoo
+[+] resolved commit_creds to 0xffffffff81060dc0
